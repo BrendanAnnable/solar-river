@@ -1,4 +1,5 @@
 import asyncio
+import async_timeout
 from enum import Enum
 
 from .solar_river_packet import SolarRiverPacket
@@ -88,7 +89,7 @@ class SolarRiverIO:
         for i in range(retry + 1):
             try:
                 if not self.connection:
-                    async with asyncio.timeout(self.timeout):
+                    async with async_timeout.timeout(self.timeout):
                         self.connection = await asyncio.open_connection(self.host, self.port)
                 return self.connection
             except TimeoutError:
@@ -113,7 +114,7 @@ class SolarRiverIO:
     async def send_command(self, packet) -> bytes:
         for i in range(3):
             try:
-                async with asyncio.timeout(self.timeout):
+                async with async_timeout.timeout(self.timeout):
                     return await self._send_command(packet)
             except TimeoutError:
                 pass
@@ -135,7 +136,7 @@ class InverterRouter:
         self.routing_table = dict()
 
     async def find_inverters(self, search_time_secs=5, time_between_attempts_secs=0.5) -> list[bytes]:
-        async with asyncio.timeout(5):
+        async with async_timeout.timeout(5):
             print('RESET_NETWORK REQ')
             await self.io.write_packet(SolarRiverCodec.encode(command=Command.RESET_NETWORK))
 
@@ -143,7 +144,7 @@ class InverterRouter:
             serials = set()
             for i in range(int(search_time_secs / time_between_attempts_secs)):
                 try:
-                    async with asyncio.timeout(time_between_attempts_secs):
+                    async with async_timeout.timeout(time_between_attempts_secs):
                         print('REQUEST_SERIAL REQ')
                         await self.io.write_packet(SolarRiverCodec.encode(command=Command.REQUEST_SERIAL))
                         packet = await self.io.read_packet()
@@ -174,7 +175,7 @@ class InverterRouter:
     async def send_command(self, serial: bytes, command: Command) -> SolarRiverPacket.DataPayload:
         for i in range(3):
             try:
-                async with asyncio.timeout(2):
+                async with async_timeout.timeout(2):
                     return await self._send_command(serial, command)
             except TimeoutError:
                 pass
