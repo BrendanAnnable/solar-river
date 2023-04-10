@@ -18,7 +18,7 @@ from homeassistant.const import (
 from datetime import timedelta
 
 
-DOMAIN = "samil"
+DOMAIN = "solar_river"
 
 DATA_API_CLIENT = "api_client"
 
