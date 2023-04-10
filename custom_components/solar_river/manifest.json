@@ -1,0 +1,11 @@
+{
+  "codeowners": ["@BrendanAnnable"],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "https://github.com/BrendanAnnable/solar-river",
+  "domain": "solar_river",
+  "iot_class": "local_polling",
+  "name": "Solar River Inverter",
+  "requirements": [],
+  "version": "1.0.0"
+}
