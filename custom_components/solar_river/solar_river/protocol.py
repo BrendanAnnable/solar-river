@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import async_timeout
 from enum import Enum
 
@@ -12,6 +13,8 @@ from .model import (
 )
 
 MAGIC_HEADER = b"\x55\xaa"
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class Command(Enum):
@@ -92,11 +95,11 @@ class SolarRiverIO:
                     async with async_timeout.timeout(self.timeout):
                         self.connection = await asyncio.open_connection(self.host, self.port)
                 return self.connection
-            except TimeoutError:
-                print(f'Connection Timeout, retrying...{i + 1} of {retry}')
+            except TimeoutError as ex:
+                _LOGGER.exception(f'Connection Timeout, retrying...{i + 1} of {retry}', exc_info=ex)
                 await asyncio.sleep(1)
-            except ConnectionError:
-                print(f'Connection Error retrying...{i + 1} of {retry}')
+            except ConnectionError as ex:
+                _LOGGER.exception(f'Connection Error retrying...{i + 1} of {retry}', exc_info=ex)
                 await asyncio.sleep(1)
         raise ConnectionError
 
@@ -120,10 +123,12 @@ class SolarRiverIO:
             try:
                 async with async_timeout.timeout(self.timeout):
                     return await self._send_command(packet)
-            except TimeoutError:
-                pass
-            except ConnectionError:
+            except TimeoutError as ex:
+                _LOGGER.exception('Timeout', exc_info=ex)
+            except ConnectionError as ex:
+                _LOGGER.exception('Connection Error', exc_info=ex)
                 self.connection = None
+        _LOGGER.error(f'Failed to send command {packet}')
         raise ConnectionError
 
     async def _send_command(self, packet) -> bytes:
@@ -141,7 +146,7 @@ class InverterRouter:
 
     async def find_inverters(self, search_time_secs=10, time_between_attempts_secs=0.5) -> list[bytes]:
         async with async_timeout.timeout(search_time_secs * 2):
-            print('RESET_NETWORK REQ')
+            _LOGGER.info('RESET_NETWORK REQ')
             await self.io.write_packet(SolarRiverCodec.encode(command=Command.RESET_NETWORK))
 
             # Here we mimic the official SolarPower Browser software by repeatedly polling for serial numbers.
@@ -149,18 +154,17 @@ class InverterRouter:
             for i in range(int(search_time_secs / time_between_attempts_secs)):
                 try:
                     async with async_timeout.timeout(time_between_attempts_secs):
-                        print('REQUEST_SERIAL REQ')
+                        _LOGGER.info('REQUEST_SERIAL REQ')
                         await self.io.write_packet(SolarRiverCodec.encode(command=Command.REQUEST_SERIAL))
                         packet = await self.io.read_packet()
                         serial = SolarRiverCodec.decode(packet).body.data_payload.data
                         serials.add(serial)
-                        print('REQUEST_SERIAL RES', serial)
+                        _LOGGER.info('REQUEST_SERIAL RES', serial)
                         # Inverter responds with two packets, it is currently unknown what this second packet describes.
                         await self.io.read_packet()
                     await asyncio.sleep(time_between_attempts_secs)
-                except TimeoutError:
-                    print('No reply')
-                print()
+                except TimeoutError as ex:
+                    _LOGGER.exception('No reply', exc_info=ex)
 
             return list(serials)
 
@@ -190,13 +194,11 @@ class InverterRouter:
 
     async def _send_command(self, serial: bytes, command: Command) -> SolarRiverPacket.DataPayload:
         address = await self.get_inverter_address(serial)
-        print('addr', address)
+        _LOGGER.info('addr', address)
         req = SolarRiverCodec.encode(command=command, dst=address)
-        print('req', req)
+        _LOGGER.info('req', req)
         res = await self.io.send_command(req)
-        # await asyncio.sleep(0.1)
-        # await asyncio.sleep(0.2)
-        print('res', res)
+        _LOGGER.info('res', res)
         return SolarRiverCodec.decode(res).body.data_payload.data
 
 

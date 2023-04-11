@@ -1,5 +1,6 @@
 """The Samil Solar Inverter integration."""
 from __future__ import annotations
+import logging
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform, CONF_HOST, CONF_PORT
@@ -13,6 +14,8 @@ from .const import DOMAIN, DATA_API_CLIENT
 
 PLATFORMS: list[Platform] = [Platform.SENSOR]
 
+_LOGGER = logging.getLogger(__name__)
+
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Samil Solar Inverter from a config entry."""
@@ -20,6 +23,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         api: Samil = await SamilImpl.discover_inverters(entry.data[CONF_HOST], entry.data[CONF_PORT])
         # api: Samil = await FakeSamil.discover_inverters(entry.data[CONF_HOST], entry.data[CONF_PORT])
     except Exception as ex:
+        _LOGGER.exception('THERE WAS AN ERRRRORRRR', exc_info=ex)
         raise ConfigEntryNotReady from ex
 
     if not len(api.inverters):
