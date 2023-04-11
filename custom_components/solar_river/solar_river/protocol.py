@@ -95,7 +95,7 @@ class SolarRiverIO:
                     async with async_timeout.timeout(self.timeout):
                         self.connection = await asyncio.open_connection(self.host, self.port)
                 return self.connection
-            except TimeoutError as ex:
+            except asyncio.TimeoutError as ex:
                 _LOGGER.exception(f'Connection Timeout, retrying...{i + 1} of {retry}', exc_info=ex)
                 await asyncio.sleep(1)
             except ConnectionError as ex:
@@ -123,7 +123,7 @@ class SolarRiverIO:
             try:
                 async with async_timeout.timeout(self.timeout):
                     return await self._send_command(packet)
-            except TimeoutError as ex:
+            except asyncio.TimeoutError as ex:
                 _LOGGER.exception('Timeout', exc_info=ex)
             except ConnectionError as ex:
                 _LOGGER.exception('Connection Error', exc_info=ex)
@@ -163,7 +163,7 @@ class InverterRouter:
                         # Inverter responds with two packets, it is currently unknown what this second packet describes.
                         await self.io.read_packet()
                     await asyncio.sleep(time_between_attempts_secs)
-                except TimeoutError as ex:
+                except asyncio.TimeoutError as ex:
                     _LOGGER.exception('No reply', exc_info=ex)
 
             return list(serials)
@@ -185,7 +185,7 @@ class InverterRouter:
             try:
                 async with async_timeout.timeout(2):
                     return await self._send_command(serial, command)
-            except TimeoutError:
+            except asyncio.TimeoutError:
                 pass
             except ConnectionError:
                 # Assume the worst and clear routing the table on any connection error.
