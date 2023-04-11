@@ -95,6 +95,10 @@ class SolarRiverIO:
             except TimeoutError:
                 print(f'Connection Timeout, retrying...{i + 1} of {retry}')
                 await asyncio.sleep(1)
+            except ConnectionError:
+                print(f'Connection Error retrying...{i + 1} of {retry}')
+                await asyncio.sleep(1)
+        raise ConnectionError
 
     async def write_packet(self, packet) -> None:
         (_, writer) = await self.get_connection()
