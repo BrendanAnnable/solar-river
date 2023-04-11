@@ -145,28 +145,28 @@ class InverterRouter:
         self.routing_table = dict()
 
     async def find_inverters(self, search_time_secs=10, time_between_attempts_secs=0.5) -> list[bytes]:
-        async with async_timeout.timeout(search_time_secs * 2):
-            _LOGGER.info('RESET_NETWORK REQ')
+        _LOGGER.info('RESET_NETWORK REQ')
+        async with async_timeout.timeout(2):
             await self.io.write_packet(SolarRiverCodec.encode(command=Command.RESET_NETWORK))
 
-            # Here we mimic the official SolarPower Browser software by repeatedly polling for serial numbers.
-            serials = set()
-            for i in range(int(search_time_secs / time_between_attempts_secs)):
-                try:
-                    async with async_timeout.timeout(time_between_attempts_secs):
-                        _LOGGER.info('REQUEST_SERIAL REQ')
-                        await self.io.write_packet(SolarRiverCodec.encode(command=Command.REQUEST_SERIAL))
-                        packet = await self.io.read_packet()
-                        serial = SolarRiverCodec.decode(packet).body.data_payload.data
-                        serials.add(serial)
-                        _LOGGER.info('REQUEST_SERIAL RES', serial)
-                        # Inverter responds with two packets, it is currently unknown what this second packet describes.
-                        await self.io.read_packet()
-                    await asyncio.sleep(time_between_attempts_secs)
-                except asyncio.TimeoutError as ex:
-                    _LOGGER.exception('No reply', exc_info=ex)
+        # Here we mimic the official SolarPower Browser software by repeatedly polling for serial numbers.
+        serials = set()
+        for i in range(int(search_time_secs / time_between_attempts_secs)):
+            try:
+                async with async_timeout.timeout(time_between_attempts_secs):
+                    _LOGGER.info('REQUEST_SERIAL REQ')
+                    await self.io.write_packet(SolarRiverCodec.encode(command=Command.REQUEST_SERIAL))
+                    packet = await self.io.read_packet()
+                    serial = SolarRiverCodec.decode(packet).body.data_payload.data
+                    serials.add(serial)
+                    _LOGGER.info('REQUEST_SERIAL RES', serial)
+                    # Inverter responds with two packets, it is currently unknown what this second packet describes.
+                    await self.io.read_packet()
+                await asyncio.sleep(time_between_attempts_secs)
+            except asyncio.TimeoutError as ex:
+                _LOGGER.exception('No reply', exc_info=ex)
 
-            return list(serials)
+        return list(serials)
 
     async def get_inverter_address(self, serial: bytes) -> bytes:
         try:
