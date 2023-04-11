@@ -135,8 +135,8 @@ class InverterRouter:
         self.io = io
         self.routing_table = dict()
 
-    async def find_inverters(self, search_time_secs=5, time_between_attempts_secs=0.5) -> list[bytes]:
-        async with async_timeout.timeout(5):
+    async def find_inverters(self, search_time_secs=10, time_between_attempts_secs=0.5) -> list[bytes]:
+        async with async_timeout.timeout(search_time_secs * 2):
             print('RESET_NETWORK REQ')
             await self.io.write_packet(SolarRiverCodec.encode(command=Command.RESET_NETWORK))
 
