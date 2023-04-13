@@ -129,6 +129,7 @@ class SolarRiverIO:
                 _LOGGER.exception('Connection Error', exc_info=ex)
                 self.connection = None
         _LOGGER.error(f'Failed to send command {packet}')
+        self.connection = None
         raise ConnectionError
 
     async def _send_command(self, packet) -> bytes:
@@ -190,6 +191,7 @@ class InverterRouter:
             except ConnectionError:
                 # Assume the worst and clear routing the table on any connection error.
                 self.routing_table.clear()
+        self.routing_table.clear()
         raise ConnectionError
 
     async def _send_command(self, serial: bytes, command: Command) -> SolarRiverPacket.DataPayload:
