@@ -62,7 +62,7 @@ class FakeSamil(Samil):
         self.inverters = inverters
 
     @staticmethod
-    async def discover_inverters(host: str, port: int) -> FakeSamil:
+    async def discover_inverters(host: str, port: int, num_inverters: int = None) -> FakeSamil:
         return FakeSamil([
             FakeSamilSolarRiver("FAKESERIAL1"),
         ])

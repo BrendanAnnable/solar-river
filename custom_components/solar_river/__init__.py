@@ -20,10 +20,10 @@ _LOGGER = logging.getLogger(__name__)
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Samil Solar Inverter from a config entry."""
     try:
-        api: Samil = await SamilImpl.discover_inverters(entry.data[CONF_HOST], entry.data[CONF_PORT])
+        num_inverters = entry.data.get('num_inverters', None)
+        api: Samil = await SamilImpl.discover_inverters(entry.data[CONF_HOST], entry.data[CONF_PORT], num_inverters)
         # api: Samil = await FakeSamil.discover_inverters(entry.data[CONF_HOST], entry.data[CONF_PORT])
     except Exception as ex:
-        _LOGGER.exception('THERE WAS AN ERRRRORRRR', exc_info=ex)
         raise ConfigEntryNotReady from ex
 
     if not len(api.inverters):

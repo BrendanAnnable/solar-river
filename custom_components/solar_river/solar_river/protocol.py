@@ -88,20 +88,11 @@ class SolarRiverIO:
         self.sem = asyncio.Semaphore()
         self.timeout = timeout
 
-    async def get_connection(self, retry=2) -> (asyncio.StreamReader, asyncio.StreamWriter):
-        for i in range(retry + 1):
-            try:
-                if not self.connection:
-                    async with async_timeout.timeout(self.timeout):
-                        self.connection = await asyncio.open_connection(self.host, self.port)
-                return self.connection
-            except asyncio.TimeoutError as ex:
-                _LOGGER.exception(f'Connection Timeout, retrying...{i + 1} of {retry}', exc_info=ex)
-                await asyncio.sleep(1)
-            except ConnectionError as ex:
-                _LOGGER.exception(f'Connection Error retrying...{i + 1} of {retry}', exc_info=ex)
-                await asyncio.sleep(1)
-        raise ConnectionError
+    async def get_connection(self) -> (asyncio.StreamReader, asyncio.StreamWriter):
+        if not self.connection:
+            async with async_timeout.timeout(self.timeout):
+                self.connection = await asyncio.open_connection(self.host, self.port)
+        return self.connection
 
     async def write_packet(self, packet) -> None:
         (_, writer) = await self.get_connection()
@@ -119,24 +110,19 @@ class SolarRiverIO:
         return buffer
 
     async def send_command(self, packet) -> bytes:
-        for i in range(3):
-            try:
-                async with async_timeout.timeout(self.timeout):
-                    return await self._send_command(packet)
-            except asyncio.TimeoutError as ex:
-                _LOGGER.exception('Timeout', exc_info=ex)
-            except ConnectionError as ex:
-                _LOGGER.exception('Connection Error', exc_info=ex)
-                self.connection = None
-        _LOGGER.error(f'Failed to send command {packet}')
-        self.connection = None
-        raise ConnectionError
+        try:
+            async with async_timeout.timeout(self.timeout):
+                return await self._send_command(packet)
+        except Exception as ex:
+            _LOGGER.exception('Connection Error', exc_info=ex)
+            self.connection = None
+            raise ex
 
     async def _send_command(self, packet) -> bytes:
         async with self.sem:
             await self.write_packet(packet)
             packet = await self.read_packet()
-            await asyncio.sleep(0.2)
+            await asyncio.sleep(0.5)
             return packet
 
 
@@ -145,8 +131,7 @@ class InverterRouter:
         self.io = io
         self.routing_table = dict()
 
-    async def find_inverters(self, search_time_secs=10, time_between_attempts_secs=0.5) -> list[bytes]:
-        _LOGGER.info('RESET_NETWORK REQ')
+    async def find_inverters(self, num_inverters: int = None, search_time_secs=10, time_between_attempts_secs=0.5) -> list[bytes]:
         async with async_timeout.timeout(2):
             await self.io.write_packet(SolarRiverCodec.encode(command=Command.RESET_NETWORK))
 
@@ -155,17 +140,17 @@ class InverterRouter:
         for i in range(int(search_time_secs / time_between_attempts_secs)):
             try:
                 async with async_timeout.timeout(time_between_attempts_secs):
-                    _LOGGER.info('REQUEST_SERIAL REQ')
                     await self.io.write_packet(SolarRiverCodec.encode(command=Command.REQUEST_SERIAL))
                     packet = await self.io.read_packet()
                     serial = SolarRiverCodec.decode(packet).body.data_payload.data
                     serials.add(serial)
-                    _LOGGER.info('REQUEST_SERIAL RES', serial)
                     # Inverter responds with two packets, it is currently unknown what this second packet describes.
                     await self.io.read_packet()
                 await asyncio.sleep(time_between_attempts_secs)
             except asyncio.TimeoutError as ex:
-                _LOGGER.exception('No reply', exc_info=ex)
+                pass
+            if num_inverters is not None and len(serials) >= num_inverters:
+                break
 
         return list(serials)
 
@@ -182,27 +167,18 @@ class InverterRouter:
             return address
 
     async def send_command(self, serial: bytes, command: Command) -> SolarRiverPacket.DataPayload:
-        for i in range(3):
-            try:
-                async with async_timeout.timeout(2):
-                    return await self._send_command(serial, command)
-            except asyncio.TimeoutError:
-                pass
-            except ConnectionError:
-                # Assume the worst and clear routing the table on any connection error.
-                self.routing_table.clear()
-        self.routing_table.clear()
-        raise ConnectionError
+        try:
+            async with async_timeout.timeout(2):
+                return await self._send_command(serial, command)
+        except Exception as ex:
+            self.routing_table.clear()
+            raise ex
 
     async def _send_command(self, serial: bytes, command: Command) -> SolarRiverPacket.DataPayload:
         address = await self.get_inverter_address(serial)
-        _LOGGER.info('addr', address)
         req = SolarRiverCodec.encode(command=command, dst=address)
-        _LOGGER.info('req', req)
         res = await self.io.send_command(req)
-        _LOGGER.info('res', res)
         return SolarRiverCodec.decode(res).body.data_payload.data
-
 
 
 class SamilInverterImpl(SamilInverter):
@@ -231,10 +207,10 @@ class SamilImpl(Samil):
         self.inverters = inverters
 
     @staticmethod
-    async def discover_inverters(host: str, port: int) -> Samil:
+    async def discover_inverters(host: str, port: int, num_inverters: int = None) -> Samil:
         io = SolarRiverIO(host, port)
         router = InverterRouter(io)
-        serials = await router.find_inverters()
+        serials = await router.find_inverters(num_inverters)
         inverters = []
         for serial in serials:
             inverters.append(SamilInverterImpl(serial, router))

@@ -22,5 +22,5 @@ class Samil(Protocol):
     inverters: list[SamilInverter]
 
     @staticmethod
-    async def discover_inverters(host: str, port: int) -> Samil:
+    async def discover_inverters(host: str, port: int, num_inverters: int = None) -> Samil:
         ...

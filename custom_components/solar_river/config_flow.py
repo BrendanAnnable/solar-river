@@ -23,6 +23,7 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
     {
         vol.Required("host"): str,
         vol.Required("port", default=8081): int,
+        vol.Optional("num_inverters", default=1): int,
     }
 )
 
@@ -62,7 +63,7 @@ async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str,
 
     try:
         # api: Samil = SamilImpl.discover_inverters(entry.data[CONF_HOST], entry.data[CONF_PORT])
-        api: Samil = await FakeSamil.discover_inverters(data.get(CONF_HOST), data.get(CONF_PORT))
+        api: Samil = await FakeSamil.discover_inverters(data.get(CONF_HOST), data.get(CONF_PORT), data.get("num_inverters", None))
     except Exception as ex:
         _LOGGER.error("Could not retrieve details from SolarRiver API")
         raise ConfigEntryNotReady from ex
